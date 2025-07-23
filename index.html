@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Puissance 4</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="data:application/manifest+json,{\"name\":\"Puissance 4\",\"short_name\":\"P4\",\"display\":\"standalone\",\"background_color\":\"#000\",\"theme_color\":\"#000\",\"icons\":[]}" />
+  <style>
+    html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;font-size:18px;background:#000;color:#fff}
+    #board{display:grid;grid-template-columns:repeat(7,1fr);max-width:420px;margin:20px auto;gap:6px}
+    .cell{background:#0048ff;border-radius:50%;aspect-ratio:1;position:relative}
+    .cell::after{content:'';position:absolute;inset:6px;border-radius:50%;background:#fff}
+    .cell.red::after{background:#ff2d26}
+    .cell.yellow::after{background:#ffeb3b}
+    #controls{text-align:center;margin:10px}
+    button{background:#222;border:0;color:#fff;padding:10px 20px;border-radius:10px;margin:5px}
+    select{background:#222;color:#fff;padding:8px;border-radius:6px}
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <select id="mode">
+      <option value="1">1 joueur vs IA</option>
+      <option value="2">2 joueurs</option>
+    </select>
+    <select id="difficulty">
+      <option value="1">Facile</option>
+      <option value="3">Moyen</option>
+      <option value="5">Difficile</option>
+    </select>
+    <button onclick="newGame()">Nouvelle partie</button>
+  </div>
+  <div id="board"></div>
+
+  <script>
+    const ROWS = 6, COLS = 7, EMPTY = 0, RED = 1, YELLOW = 2;
+    let board = [], current = RED, vsAI = true, depth = 3;
+
+    function initBoard() {
+      board = Array.from({length: ROWS}, () => Array(COLS).fill(EMPTY));
+      const b = document.getElementById('board');
+      b.innerHTML = '';
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.c = c;
+          cell.addEventListener('click', () => play(c));
+          b.appendChild(cell);
+        }
+      }
+      render();
+    }
+
+    function render() {
+      const cells = document.querySelectorAll('.cell');
+      cells.forEach((cell, idx) => {
+        const r = Math.floor(idx / COLS);
+        const c = idx % COLS;
+        cell.className = 'cell';
+        if (board[r][c] === RED) cell.classList.add('red');
+        if (board[r][c] === YELLOW) cell.classList.add('yellow');
+      });
+    }
+
+    function drop(col) {
+      for (let r = ROWS - 1; r >= 0; r--) {
+        if (board[r][col] === EMPTY) return r;
+      }
+      return -1;
+    }
+
+    function play(col) {
+      const row = drop(col);
+      if (row === -1 || current === YELLOW && vsAI) return;
+      board[row][col] = current;
+      render();
+      if (win(row, col)) return alert((current === RED ? 'Rouge' : 'Jaune') + ' gagne !');
+      if (board[0].every(c => c)) return alert('Match nul !');
+      current = 3 - current;
+      if (vsAI && current === YELLOW) {
+        setTimeout(() => {
+          const aiCol = bestMove();
+          play(aiCol);
+        }, 400);
+      }
+    }
+
+    function win(r, c) {
+      const player = board[r][c];
+      const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+      for (const [dr, dc] of dirs) {
+        let count = 1;
+        for (let sign of [1, -1]) {
+          for (let i = 1; i < 4; i++) {
+            const nr = r + sign * dr * i;
+            const nc = c + sign * dc * i;
+            if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS || board[nr][nc] !== player) break;
+            count++;
+          }
+        }
+        if (count >= 4) return true;
+      }
+      return false;
+    }
+
+    function scoreWindow(w) {
+      const score = {0:0, 1:0, 2:0};
+      w.forEach(v => score[v]++);
+      if (score[RED] === 4) return 1000;
+      if (score[RED] === 3 && score[EMPTY] === 1) return 5;
+      if (score[RED] === 2 && score[EMPTY] === 2) return 2;
+      if (score[YELLOW] === 4) return -1000;
+      if (score[YELLOW] === 3 && score[EMPTY] === 1) return -5;
+      if (score[YELLOW] === 2 && score[EMPTY] === 2) return -2;
+      return 0;
+    }
+
+    function evaluate() {
+      let score = 0;
+      // center
+      score += board.map(r => r[Math.floor(COLS/2)]).filter(v => v === RED).length * 3;
+      // horizontal
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS - 3; c++) {
+          const w = [board[r][c], board[r][c+1], board[r][c+2], board[r][c+3]];
+          score += scoreWindow(w);
+        }
+      }
+      // vertical
+      for (let c = 0; c < COLS; c++) {
+        for (let r = 0; r < ROWS - 3; r++) {
+          const w = [board[r][c], board[r+1][c], board[r+2][c], board[r+3][c]];
+          score += scoreWindow(w);
+        }
+      }
+      // diag /
+      for (let r = 3; r < ROWS; r++) {
+        for (let c = 0; c < COLS - 3; c++) {
+          const w = [board[r][c], board[r-1][c+1], board[r-2][c+2], board[r-3][c+3]];
+          score += scoreWindow(w);
+        }
+      }
+      // diag \
+      for (let r = 0; r < ROWS - 3; r++) {
+        for (let c = 0; c < COLS - 3; c++) {
+          const w = [board[r][c], board[r+1][c+1], board[r+2][c+2], board[r+3][c+3]];
+          score += scoreWindow(w);
+        }
+      }
+      return score;
+    }
+
+    function minimax(board, depth, alpha, beta, maximizing) {
+      const validMoves = [...Array(COLS).keys()].filter(c => board[0][c] === EMPTY);
+      const term = validMoves.length === 0 || validMoves.some(c => {
+        const r = drop(c);
+        board[r][c] = maximizing ? YELLOW : RED;
+        const w = win(r, c);
+        board[r][c] = EMPTY;
+        return w;
+      });
+      if (depth === 0 || term) {
+        return [evaluate(), null];
+      }
+      if (maximizing) {
+        let value = -Infinity, best = null;
+        for (const c of validMoves) {
+          const r = drop(c);
+          board[r][c] = YELLOW;
+          const [val] = minimax(board, depth - 1, alpha, beta, false);
+          board[r][c] = EMPTY;
+          if (val > value) { value = val; best = c; }
+          alpha = Math.max(alpha, value);
+          if (alpha >= beta) break;
+        }
+        return [value, best];
+      } else {
+        let value = Infinity, best = null;
+        for (const c of validMoves) {
+          const r = drop(c);
+          board[r][c] = RED;
+          const [val] = minimax(board, depth - 1, alpha, beta, true);
+          board[r][c] = EMPTY;
+          if (val < value) { value = val; best = c; }
+          beta = Math.min(beta, value);
+          if (alpha >= beta) break;
+        }
+        return [value, best];
+      }
+    }
+
+    function bestMove() {
+      const [, col] = minimax(board, depth, -Infinity, Infinity, true);
+      return col;
+    }
+
+    function newGame() {
+      vsAI = document.getElementById('mode').value === '1';
+      depth = parseInt(document.getElementById('difficulty').value);
+      current = RED;
+      initBoard();
+    }
+
+    initBoard();
+  </script>
+</body>
+</html>
