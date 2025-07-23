@@ -73,7 +73,7 @@
 
     function play(col) {
       const row = drop(col);
-      if (row === -1 || current === YELLOW && vsAI) return;
+      if (row === -1 || current === YELLOW && vsAI && !isAI) return;
       board[row][col] = current;
       render();
       if (win(row, col)) return alert((current === RED ? 'Rouge' : 'Jaune') + ' gagne !');
@@ -82,7 +82,7 @@
       if (vsAI && current === YELLOW) {
         setTimeout(() => {
           const aiCol = bestMove();
-          play(aiCol);
+          play(aiCol,true);
         }, 400);
       }
     }
