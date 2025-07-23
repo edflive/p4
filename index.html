@@ -191,8 +191,6 @@
     <div id="game-status"></div>
   </div>
 
-  // ... (le reste de votre code HTML et CSS reste inchangé) ...
-
   <script>
     const ROWS = 6, COLS = 7, EMPTY = 0, RED = 1, YELLOW = 2;
     let board = [], current = RED, vsAI = true, depth = 3;
@@ -339,13 +337,6 @@
       return false;
     }
 
-    /**
-     * Calcule un score pour une fenêtre de 4 cellules.
-     * Le score est basé sur le nombre de jetons du joueur et de l'adversaire dans cette fenêtre.
-     * @param {Array<number>} window - Un tableau de 4 cellules (EMPTY, RED, YELLOW).
-     * @param {number} currentPlayer - Le joueur pour lequel on évalue le score (YELLOW pour l'IA, RED pour l'adversaire).
-     * @returns {number} Le score de la fenêtre.
-     */
     function scoreWindow(window, currentPlayer) {
       const opponentPlayer = (currentPlayer === RED) ? YELLOW : RED;
 
@@ -355,20 +346,18 @@
 
       let score = 0;
 
-      // Priorité à la victoire directe
       if (currentCount === 4) {
-          score += 100000; // Très grande valeur pour garantir que l'IA gagne
+          score += 100000;
       } else if (currentCount === 3 && emptyCount === 1) {
-          score += 1000; // Grosse valeur pour une menace de victoire
+          score += 1000;
       } else if (currentCount === 2 && emptyCount === 2) {
           score += 10;
       }
 
-      // Pénalités pour les menaces de l'adversaire
       if (opponentCount === 4) {
-          score -= 99999; // Presque aussi grande que la victoire pour bloquer une défaite
+          score -= 99999;
       } else if (opponentCount === 3 && emptyCount === 1) {
-          score -= 999; // Bloquer une menace de l'adversaire
+          score -= 999;
       } else if (opponentCount === 2 && emptyCount === 2) {
           score -= 9;
       }
@@ -376,22 +365,13 @@
       return score;
     }
 
-    /**
-     * Évalue le plateau de jeu pour le joueur donné.
-     * @param {Array<Array<number>>} currentBoard - La copie actuelle du plateau.
-     * @param {number} currentPlayer - Le joueur pour lequel on évalue le plateau (YELLOW pour l'IA).
-     * @returns {number} Le score total du plateau.
-     */
     function evaluateBoard(currentBoard, currentPlayer) {
       let totalScore = 0;
 
-      // Priorité au centre (la colonne du milieu est souvent stratégique)
       const centerColumn = currentBoard.map(row => row[Math.floor(COLS / 2)]);
       totalScore += centerColumn.filter(cell => cell === currentPlayer).length * 50;
       totalScore -= centerColumn.filter(cell => cell === (currentPlayer === RED ? YELLOW : RED)).length * 20;
 
-
-      // Évaluation des fenêtres de 4 jetons
       // Horizontal
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c <= COLS - 4; c++) {
@@ -419,88 +399,11 @@
       // Diagonale négative (bas-gauche vers haut-droite)
       for (let r = 3; r < ROWS; r++) {
         for (let c = 0; c <= COLS - 4; c++) {
-          const window = [currentBoard[r][c], currentBoard[r-1][c+1], currentBoard[r-2][c+2], currentBord[r-3][c+3]];
+          const window = [currentBoard[r][c], currentBoard[r-1][c+1], currentBoard[r-2][c+2], currentBoard[r-3][c+3]];
           totalScore += scoreWindow(window, currentPlayer);
         }
       }
       return totalScore;
-    }
-
-    // Adapte la fonction minimax
-    function minimax(currentBoard, depth, alpha, beta, maximizingPlayer) {
-      const validMoves = [...Array(COLS).keys()].filter(c => currentBoard[0][c] === EMPTY);
-
-      // Vérifie si un joueur a gagné ou si le plateau est plein (nœud terminal)
-      let isTerminal = false;
-      if (validMoves.length === 0) { // Plateau plein
-          isTerminal = true;
-      } else {
-          // Vérifier si un coup gagnant existe pour le joueur actuel
-          const playerToCheck = maximizingPlayer ? YELLOW : RED;
-          for (const col of validMoves) {
-              const row = dropInBoard(currentBoard, col);
-              if (row !== -1) {
-                  currentBoard[row][col] = playerToCheck;
-                  if (winInBoard(currentBoard, row, col)) {
-                      isTerminal = true;
-                  }
-                  currentBoard[row][col] = EMPTY; // Annuler le coup
-                  if (isTerminal) break;
-              }
-          }
-      }
-      
-      if (depth === 0 || isTerminal) {
-        // La fonction evaluateBoard est maintenant plus précise et prend en compte le joueur
-        // L'IA (YELLOW) est le joueur maximisant, l'humain (RED) est le minimisant
-        const score = evaluateBoard(currentBoard, YELLOW);
-        return [score, null];
-      }
-
-      if (maximizingPlayer) { // L'IA (Jaune) maximise
-        let value = -Infinity;
-        let bestCol = null;
-
-        // Ordre les coups pour une meilleure élagage alpha-beta (commencer par le centre)
-        const orderedMoves = [...validMoves].sort((a,b) => Math.abs(a - COLS/2) - Math.abs(b - COLS/2));
-
-        for (const col of orderedMoves) {
-          const newBoard = JSON.parse(JSON.stringify(currentBoard));
-          const row = dropInBoard(newBoard, col);
-          if (row !== -1) {
-              newBoard[row][col] = YELLOW;
-              const [val] = minimax(newBoard, depth - 1, alpha, beta, false);
-              if (val > value) {
-                value = val;
-                bestCol = col;
-              }
-              alpha = Math.max(alpha, value);
-              if (alpha >= beta) break;
-          }
-        }
-        return [value, bestCol];
-      } else { // Joueur humain (Rouge) minimise
-        let value = Infinity;
-        let bestCol = null;
-
-        const orderedMoves = [...validMoves].sort((a,b) => Math.abs(a - COLS/2) - Math.abs(b - COLS/2));
-
-        for (const col of orderedMoves) {
-          const newBoard = JSON.parse(JSON.stringify(currentBoard));
-          const row = dropInBoard(newBoard, col);
-          if (row !== -1) {
-              newBoard[row][col] = RED;
-              const [val] = minimax(newBoard, depth - 1, alpha, beta, true);
-              if (val < value) {
-                value = val;
-                bestCol = col;
-              }
-              beta = Math.min(beta, value);
-              if (alpha >= beta) break;
-          }
-        }
-        return [value, bestCol];
-      }
     }
 
     // Fonctions auxiliaires pour minimax afin d'opérer sur une copie du plateau
@@ -539,6 +442,107 @@
         return false;
     }
 
+    /**
+     * Algorithme Minimax avec élagage Alpha-Beta pour le Puissance 4.
+     * @param {Array<Array<number>>} currentBoard - L'état actuel du plateau.
+     * @param {number} depth - La profondeur de recherche restante.
+     * @param {number} alpha - La meilleure valeur trouvée jusqu'à présent pour le joueur maximisant.
+     * @param {number} beta - La meilleure valeur trouvée jusqu'à présent pour le joueur minimisant.
+     * @param {boolean} maximizingPlayer - Vrai si le joueur actuel est l'IA (Jaune), Faux si c'est l'adversaire (Rouge).
+     * @returns {Array<number, number|null>} Un tableau contenant le meilleur score et la meilleure colonne.
+     */
+    function minimax(currentBoard, depth, alpha, beta, maximizingPlayer) {
+      const validMoves = [...Array(COLS).keys()].filter(c => currentBoard[0][c] === EMPTY);
+
+      // --- Conditions de terminaison ---
+      // 1. Le plateau est plein (match nul potentiel)
+      if (validMoves.length === 0) {
+          return [0, null]; // Score neutre pour un match nul
+      }
+
+      // 2. Vérification des victoires/défaites immédiates (très important pour le blocage)
+      // L'IA doit voir si ELLE peut gagner ou si l'adversaire peut gagner AU PROCHAIN COUP.
+      const currentPlayerForCheck = maximizingPlayer ? YELLOW : RED;
+      const opponentPlayerForCheck = maximizingPlayer ? RED : YELLOW;
+
+      for (const col of validMoves) {
+          const row = dropInBoard(currentBoard, col);
+          if (row !== -1) {
+              // Simule un coup pour le joueur actuel (si il gagne, c'est le meilleur coup)
+              currentBoard[row][col] = currentPlayerForCheck;
+              if (winInBoard(currentBoard, row, col)) {
+                  currentBoard[row][col] = EMPTY; // Annule le coup simulé
+                  // Donne un score très élevé, et ajoute la profondeur restante pour favoriser les victoires rapides
+                  return [1000000 + depth, col];
+              }
+              currentBoard[row][col] = EMPTY; // Annule le coup
+
+              // Simule un coup pour l'adversaire (si il gagne, c'est une défaite à éviter)
+              currentBoard[row][col] = opponentPlayerForCheck;
+              if (winInBoard(currentBoard, row, col)) {
+                  currentBoard[row][col] = EMPTY; // Annule le coup simulé
+                  // Donne un score très bas, et soustrait la profondeur pour pénaliser les défaites rapides
+                  return [-999999 - depth, col];
+              }
+              currentBoard[row][col] = EMPTY; // Annule le coup
+          }
+      }
+
+      // 3. Profondeur de recherche atteinte
+      if (depth === 0) {
+        // Évalue le plateau depuis la perspective de l'IA (YELLOW), qui est le joueur maximisant globalement
+        return [evaluateBoard(currentBoard, YELLOW), null];
+      }
+
+      // --- Processus de Minimax ---
+      // L'IA (Jaune) maximise son score
+      if (maximizingPlayer) {
+        let value = -Infinity;
+        let bestCol = null;
+        
+        // Optimisation: trier les coups pour commencer par le centre, améliore l'élagage.
+        const orderedMoves = [...validMoves].sort((a, b) => Math.abs(a - COLS / 2) - Math.abs(b - COLS / 2));
+
+        for (const col of orderedMoves) {
+          const newBoard = JSON.parse(JSON.stringify(currentBoard)); // Copie profonde du plateau
+          const row = dropInBoard(newBoard, col);
+          if (row !== -1) {
+              newBoard[row][col] = YELLOW; // L'IA joue
+              const [val] = minimax(newBoard, depth - 1, alpha, beta, false); // Appel récursif pour l'adversaire
+              
+              if (val > value) {
+                value = val;
+                bestCol = col;
+              }
+              alpha = Math.max(alpha, value); // Mise à jour d'alpha
+              if (alpha >= beta) break; // Élagage Beta
+          }
+        }
+        return [value, bestCol];
+      } else { // L'adversaire (Rouge) minimise le score de l'IA
+        let value = Infinity;
+        let bestCol = null;
+
+        const orderedMoves = [...validMoves].sort((a, b) => Math.abs(a - COLS / 2) - Math.abs(b - COLS / 2));
+
+        for (const col of orderedMoves) {
+          const newBoard = JSON.parse(JSON.stringify(currentBoard)); // Copie profonde du plateau
+          const row = dropInBoard(newBoard, col);
+          if (row !== -1) {
+              newBoard[row][col] = RED; // L'adversaire joue
+              const [val] = minimax(newBoard, depth - 1, alpha, beta, true); // Appel récursif pour l'IA
+              
+              if (val < value) {
+                value = val;
+                bestCol = col;
+              }
+              beta = Math.min(beta, value); // Mise à jour de beta
+              if (alpha >= beta) break; // Élagage Alpha
+          }
+        }
+        return [value, bestCol];
+      }
+    }
 
     function bestMove() {
       if (!gameActive || current !== YELLOW) return null;
@@ -558,6 +562,5 @@
 
     initBoard();
   </script>
-
 </body>
 </html>
