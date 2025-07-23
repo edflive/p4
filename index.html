@@ -191,10 +191,12 @@
     <div id="game-status"></div>
   </div>
 
+  // ... (le reste de votre code HTML et CSS reste inchangé) ...
+
   <script>
     const ROWS = 6, COLS = 7, EMPTY = 0, RED = 1, YELLOW = 2;
     let board = [], current = RED, vsAI = true, depth = 3;
-    let gameActive = false; // Pour gérer si le jeu est en cours
+    let gameActive = false;
     const gameStatusDiv = document.getElementById('game-status');
     const boardElement = document.getElementById('board');
 
@@ -205,7 +207,7 @@
         for (let c = 0; c < COLS; c++) {
           const cell = document.createElement('div');
           cell.className = 'cell';
-          cell.dataset.r = r; // Ajout pour référence de ligne
+          cell.dataset.r = r;
           cell.dataset.c = c;
           const hole = document.createElement('div');
           hole.className = 'hole';
@@ -225,7 +227,6 @@
         const r = parseInt(cell.dataset.r);
         const c = parseInt(cell.dataset.c);
         
-        // Supprime tous les jetons existants avant de recréer
         const existingChip = cell.querySelector('.chip');
         if (existingChip) {
             cell.removeChild(existingChip);
@@ -237,7 +238,6 @@
             cell.appendChild(chip);
         }
 
-        // Ajoute/supprime la classe 'playable' pour l'effet de survol
         if (gameActive && drop(c) !== -1) {
             cell.classList.add('playable');
         } else {
@@ -254,9 +254,8 @@
     }
 
     function handleCellClick(col) {
-      if (!gameActive) return; // Empêche de jouer si le jeu est terminé
+      if (!gameActive) return;
 
-      // Permet au joueur de cliquer uniquement si ce n'est pas le tour de l'IA ou si le mode n'est pas AI
       if (vsAI && current === YELLOW) return;
 
       play(col);
@@ -278,47 +277,45 @@
         return;
       }
 
-      if (board[0].every(c => c !== EMPTY)) { // Vérifie si toutes les cellules de la première ligne sont occupées
+      if (board[0].every(c => c !== EMPTY)) {
         gameActive = false;
         updateStatus('Match nul ! 🤝', "draw");
         return;
       }
 
-      current = 3 - current; // Change de joueur (1 -> 2, 2 -> 1)
+      current = 3 - current;
       updateStatus(`Au tour du joueur ${current === RED ? 'Rouge' : 'Jaune'}`);
 
       if (vsAI && current === YELLOW && gameActive) {
         setTimeout(() => {
           const aiCol = bestMove();
-          if (aiCol !== null) { // Vérifie si l'IA a trouvé un coup
+          if (aiCol !== null) {
             play(aiCol, true);
           } else {
-            // Cela ne devrait pas arriver si le jeu n'est pas nul et pas gagné
-            console.warn("L'IA n'a pas trouvé de coup valide. Jeu terminé ?");
+            console.warn("L'IA n'a pas trouvé de coup valide.");
           }
-        }, 700); // Délai de l'IA légèrement augmenté pour l'animation
+        }, 700);
       }
     }
 
     function updateStatus(message, type = "info") {
         gameStatusDiv.textContent = message;
-        gameStatusDiv.style.color = "#e0e0e0"; // Couleur par défaut
+        gameStatusDiv.style.color = "#e0e0e0";
         if (type === "win") {
-            gameStatusDiv.style.color = "#4CAF50"; // Vert pour la victoire
+            gameStatusDiv.style.color = "#4CAF50";
         } else if (type === "draw") {
-            gameStatusDiv.style.color = "#FFC107"; // Orange pour le nul
+            gameStatusDiv.style.color = "#FFC107";
         } else if (type === "error") {
-            gameStatusDiv.style.color = "#F44336"; // Rouge pour l'erreur
+            gameStatusDiv.style.color = "#F44336";
         }
     }
 
     function win(r, c) {
       const player = board[r][c];
-      const directions = [[0,1],[1,0],[1,1],[1,-1]]; // Horizontal, Vertical, Diag /, Diag \
+      const directions = [[0,1],[1,0],[1,1],[1,-1]];
 
       for (const [dr, dc] of directions) {
         let count = 1;
-        // Vérifie dans une direction
         for (let i = 1; i < 4; i++) {
           const nr = r + dr * i;
           const nc = c + dc * i;
@@ -328,7 +325,6 @@
             break;
           }
         }
-        // Vérifie dans la direction opposée
         for (let i = 1; i < 4; i++) {
           const nr = r - dr * i;
           const nc = c - dc * i;
@@ -343,39 +339,64 @@
       return false;
     }
 
-    function scoreWindow(w) {
+    /**
+     * Calcule un score pour une fenêtre de 4 cellules.
+     * Le score est basé sur le nombre de jetons du joueur et de l'adversaire dans cette fenêtre.
+     * @param {Array<number>} window - Un tableau de 4 cellules (EMPTY, RED, YELLOW).
+     * @param {number} currentPlayer - Le joueur pour lequel on évalue le score (YELLOW pour l'IA, RED pour l'adversaire).
+     * @returns {number} Le score de la fenêtre.
+     */
+    function scoreWindow(window, currentPlayer) {
+      const opponentPlayer = (currentPlayer === RED) ? YELLOW : RED;
+
+      const currentCount = window.filter(v => v === currentPlayer).length;
+      const opponentCount = window.filter(v => v === opponentPlayer).length;
+      const emptyCount = window.filter(v => v === EMPTY).length;
+
       let score = 0;
-      const redCount = w.filter(v => v === RED).length;
-      const yellowCount = w.filter(v => v === YELLOW).length;
-      const emptyCount = w.filter(v => v === EMPTY).length;
 
-      // Scores pour le joueur RED (IA est YELLOW, donc RED est maximisé par l'opposant)
-      if (redCount === 4) score += 100000;
-      else if (redCount === 3 && emptyCount === 1) score += 50;
-      else if (redCount === 2 && emptyCount === 2) score += 10;
+      // Priorité à la victoire directe
+      if (currentCount === 4) {
+          score += 100000; // Très grande valeur pour garantir que l'IA gagne
+      } else if (currentCount === 3 && emptyCount === 1) {
+          score += 1000; // Grosse valeur pour une menace de victoire
+      } else if (currentCount === 2 && emptyCount === 2) {
+          score += 10;
+      }
 
-      // Scores pour le joueur YELLOW (l'IA)
-      if (yellowCount === 4) score -= 100000; // Négatif car c'est le score de l'IA (minimisant)
-      else if (yellowCount === 3 && emptyCount === 1) score -= 50;
-      else if (yellowCount === 2 && emptyCount === 2) score -= 10;
-      
+      // Pénalités pour les menaces de l'adversaire
+      if (opponentCount === 4) {
+          score -= 99999; // Presque aussi grande que la victoire pour bloquer une défaite
+      } else if (opponentCount === 3 && emptyCount === 1) {
+          score -= 999; // Bloquer une menace de l'adversaire
+      } else if (opponentCount === 2 && emptyCount === 2) {
+          score -= 9;
+      }
+
       return score;
     }
 
-    function evaluateBoard(currentBoard) {
-      let score = 0;
+    /**
+     * Évalue le plateau de jeu pour le joueur donné.
+     * @param {Array<Array<number>>} currentBoard - La copie actuelle du plateau.
+     * @param {number} currentPlayer - Le joueur pour lequel on évalue le plateau (YELLOW pour l'IA).
+     * @returns {number} Le score total du plateau.
+     */
+    function evaluateBoard(currentBoard, currentPlayer) {
+      let totalScore = 0;
 
-      // Priorité au centre
+      // Priorité au centre (la colonne du milieu est souvent stratégique)
       const centerColumn = currentBoard.map(row => row[Math.floor(COLS / 2)]);
-      score += centerColumn.filter(cell => cell === YELLOW).length * 6; // L'IA veut le centre
-      score -= centerColumn.filter(cell => cell === RED).length * 3; // L'IA ne veut pas que l'adversaire ait le centre
+      totalScore += centerColumn.filter(cell => cell === currentPlayer).length * 50;
+      totalScore -= centerColumn.filter(cell => cell === (currentPlayer === RED ? YELLOW : RED)).length * 20;
 
-      // Vérification des fenêtres (lignes de 4 jetons)
+
+      // Évaluation des fenêtres de 4 jetons
       // Horizontal
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c <= COLS - 4; c++) {
           const window = [currentBoard[r][c], currentBoard[r][c+1], currentBoard[r][c+2], currentBoard[r][c+3]];
-          score += scoreWindow(window);
+          totalScore += scoreWindow(window, currentPlayer);
         }
       }
 
@@ -383,7 +404,7 @@
       for (let c = 0; c < COLS; c++) {
         for (let r = 0; r <= ROWS - 4; r++) {
           const window = [currentBoard[r][c], currentBoard[r+1][c], currentBoard[r+2][c], currentBoard[r+3][c]];
-          score += scoreWindow(window);
+          totalScore += scoreWindow(window, currentPlayer);
         }
       }
 
@@ -391,46 +412,60 @@
       for (let r = 0; r <= ROWS - 4; r++) {
         for (let c = 0; c <= COLS - 4; c++) {
           const window = [currentBoard[r][c], currentBoard[r+1][c+1], currentBoard[r+2][c+2], currentBoard[r+3][c+3]];
-          score += scoreWindow(window);
+          totalScore += scoreWindow(window, currentPlayer);
         }
       }
 
       // Diagonale négative (bas-gauche vers haut-droite)
       for (let r = 3; r < ROWS; r++) {
         for (let c = 0; c <= COLS - 4; c++) {
-          const window = [currentBoard[r][c], currentBoard[r-1][c+1], currentBoard[r-2][c+2], currentBoard[r-3][c+3]];
-          score += scoreWindow(window);
+          const window = [currentBoard[r][c], currentBoard[r-1][c+1], currentBoard[r-2][c+2], currentBord[r-3][c+3]];
+          totalScore += scoreWindow(window, currentPlayer);
         }
       }
-      return score;
+      return totalScore;
     }
 
     // Adapte la fonction minimax
     function minimax(currentBoard, depth, alpha, beta, maximizingPlayer) {
       const validMoves = [...Array(COLS).keys()].filter(c => currentBoard[0][c] === EMPTY);
 
-      // Vérifie si un joueur a gagné (terminal node)
-      // On doit simuler un coup pour vérifier si ça gagne, car 'win' dépend d'un coup spécifique
+      // Vérifie si un joueur a gagné ou si le plateau est plein (nœud terminal)
       let isTerminal = false;
-      for (const col of validMoves) {
-          const row = dropInBoard(currentBoard, col); // Utilise une fonction auxiliaire pour simuler un drop
-          if (row !== -1) {
-              currentBoard[row][col] = maximizingPlayer ? YELLOW : RED; // Simule le coup
-              if (winInBoard(currentBoard, row, col)) {
-                  isTerminal = true;
+      if (validMoves.length === 0) { // Plateau plein
+          isTerminal = true;
+      } else {
+          // Vérifier si un coup gagnant existe pour le joueur actuel
+          const playerToCheck = maximizingPlayer ? YELLOW : RED;
+          for (const col of validMoves) {
+              const row = dropInBoard(currentBoard, col);
+              if (row !== -1) {
+                  currentBoard[row][col] = playerToCheck;
+                  if (winInBoard(currentBoard, row, col)) {
+                      isTerminal = true;
+                  }
+                  currentBoard[row][col] = EMPTY; // Annuler le coup
+                  if (isTerminal) break;
               }
-              currentBoard[row][col] = EMPTY; // Annule le coup
           }
       }
-      if (validMoves.length === 0 || isTerminal || depth === 0) {
-        return [evaluateBoard(currentBoard), null];
+      
+      if (depth === 0 || isTerminal) {
+        // La fonction evaluateBoard est maintenant plus précise et prend en compte le joueur
+        // L'IA (YELLOW) est le joueur maximisant, l'humain (RED) est le minimisant
+        const score = evaluateBoard(currentBoard, YELLOW);
+        return [score, null];
       }
 
       if (maximizingPlayer) { // L'IA (Jaune) maximise
         let value = -Infinity;
         let bestCol = null;
-        for (const col of validMoves) {
-          const newBoard = JSON.parse(JSON.stringify(currentBoard)); // Copie profonde
+
+        // Ordre les coups pour une meilleure élagage alpha-beta (commencer par le centre)
+        const orderedMoves = [...validMoves].sort((a,b) => Math.abs(a - COLS/2) - Math.abs(b - COLS/2));
+
+        for (const col of orderedMoves) {
+          const newBoard = JSON.parse(JSON.stringify(currentBoard));
           const row = dropInBoard(newBoard, col);
           if (row !== -1) {
               newBoard[row][col] = YELLOW;
@@ -444,11 +479,14 @@
           }
         }
         return [value, bestCol];
-      } else { // Joueur (Rouge) minimise
+      } else { // Joueur humain (Rouge) minimise
         let value = Infinity;
         let bestCol = null;
-        for (const col of validMoves) {
-          const newBoard = JSON.parse(JSON.stringify(currentBoard)); // Copie profonde
+
+        const orderedMoves = [...validMoves].sort((a,b) => Math.abs(a - COLS/2) - Math.abs(b - COLS/2));
+
+        for (const col of orderedMoves) {
+          const newBoard = JSON.parse(JSON.stringify(currentBoard));
           const row = dropInBoard(newBoard, col);
           if (row !== -1) {
               newBoard[row][col] = RED;
@@ -503,23 +541,23 @@
 
 
     function bestMove() {
-      // Assurez-vous que l'IA ne joue que si c'est son tour et le jeu est actif
-      if (!gameActive || current !== YELLOW) return null; 
+      if (!gameActive || current !== YELLOW) return null;
 
+      // Lance minimax depuis la perspective de l'IA (maximizingPlayer = true)
       const [value, col] = minimax(board, depth, -Infinity, Infinity, true);
-      console.log(`AI chose column ${col} with score ${value}`); // Pour le débogage
+      console.log(`AI (YELLOW) chose column ${col} with score ${value}`);
       return col;
     }
 
     function newGame() {
       vsAI = document.getElementById('mode').value === '1';
       depth = parseInt(document.getElementById('difficulty').value);
-      current = RED; // Toujours commencer par le joueur Rouge
+      current = RED;
       initBoard();
     }
 
-    // Initialisation du jeu au chargement de la page
     initBoard();
   </script>
+
 </body>
 </html>
