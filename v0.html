@@ -1,0 +1,567 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Puissance 4</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="data:application/manifest+json,{\"name\":\"Puissance 4\",\"short_name\":\"P4\",\"display\":\"standalone\",\"background_color\":\"#000\",\"theme_color\":\"#000\",\"icons\":[]}" />
+  <style>
+    :root {
+      --board-color: #0048ff;
+      --red-chip: #ff2d26;
+      --yellow-chip: #ffeb3b;
+      --empty-cell: #fff;
+      --animation-duration: 0.3s;
+    }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 18px;
+      background: linear-gradient(to bottom right, #1a1a2e, #16213e); /* Gradient de fond */
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden; /* Empêche le débordement des animations */
+    }
+
+    #game-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        padding: 20px;
+        background: #101020;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    #controls {
+      text-align: center;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button, select {
+      background: #3a3a5a;
+      border: 0;
+      color: #e0e0e0;
+      padding: 10px 20px;
+      border-radius: 8px;
+      margin: 5px 0;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background 0.2s ease, transform 0.1s ease;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    button:hover, select:hover {
+      background: #4a4a6a;
+      transform: translateY(-2px);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    select {
+      appearance: none; /* Supprime l'apparence par défaut sur certains navigateurs */
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      padding-right: 30px; /* Espace pour la flèche personnalisée */
+      background-image: url('data:image/svg+xml;utf8,<svg fill="#e0e0e0" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>');
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      background-size: 18px;
+    }
+
+    #board {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      max-width: 420px;
+      width: 100%;
+      margin: 0 auto;
+      gap: 6px;
+      background-color: var(--board-color);
+      border-radius: 15px;
+      padding: 10px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
+      border: 5px solid #0030c0; /* Bordure plus prononcée */
+      position: relative;
+    }
+
+    .cell {
+      background: var(--board-color);
+      border-radius: 50%;
+      aspect-ratio: 1;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      overflow: hidden; /* Empêche le débordement de l'animation des jetons */
+    }
+
+    /* Effet de survol sur les cellules jouables */
+    .cell.playable:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .hole {
+      content: '';
+      position: absolute;
+      inset: 6px;
+      border-radius: 50%;
+      background: var(--empty-cell);
+      box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.5);
+    }
+
+    .chip {
+      position: absolute;
+      inset: 6px;
+      border-radius: 50%;
+      background-color: transparent;
+      transform: translateY(-500%); /* Position initiale pour l'animation */
+      animation: drop var(--animation-duration) ease-out forwards;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .chip.red {
+      background-color: var(--red-chip);
+    }
+
+    .chip.yellow {
+      background-color: var(--yellow-chip);
+    }
+
+    @keyframes drop {
+      from { transform: translateY(-500%); }
+      to { transform: translateY(0); }
+    }
+
+    #game-status {
+        margin-top: 20px;
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #e0e0e0;
+        text-align: center;
+        min-height: 1.5em; /* Empêche le décalage du layout */
+    }
+
+    @media (max-width: 600px) {
+      #board {
+        max-width: 350px;
+        gap: 4px;
+        padding: 8px;
+      }
+      .cell, .hole, .chip {
+        inset: 4px;
+      }
+      button, select {
+        padding: 8px 15px;
+        font-size: 0.9rem;
+      }
+      #game-status {
+          font-size: 1.2em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="controls">
+      <select id="mode">
+        <option value="1">1 joueur vs IA</option>
+        <option value="2">2 joueurs</option>
+      </select>
+      <select id="difficulty">
+        <option value="1">Facile</option>
+        <option value="3">Moyen</option>
+        <option value="5">Difficile</option>
+      </select>
+      <button onclick="newGame()">Nouvelle partie</button>
+    </div>
+    <div id="board"></div>
+    <div id="game-status"></div>
+  </div>
+
+  <script>
+    const ROWS = 6, COLS = 7, EMPTY = 0, RED = 1, YELLOW = 2;
+    let board = [], current = RED, vsAI = true, depth = 3;
+    let gameActive = false;
+    const gameStatusDiv = document.getElementById('game-status');
+    const boardElement = document.getElementById('board');
+
+    function initBoard() {
+      board = Array.from({length: ROWS}, () => Array(COLS).fill(EMPTY));
+      boardElement.innerHTML = '';
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.r = r;
+          cell.dataset.c = c;
+          const hole = document.createElement('div');
+          hole.className = 'hole';
+          cell.appendChild(hole);
+          cell.addEventListener('click', () => handleCellClick(c));
+          boardElement.appendChild(cell);
+        }
+      }
+      gameActive = true;
+      updateStatus(`Au tour du joueur ${current === RED ? 'Rouge' : 'Jaune'}`);
+      render();
+    }
+
+    function render() {
+      const cells = document.querySelectorAll('.cell');
+      cells.forEach(cell => {
+        const r = parseInt(cell.dataset.r);
+        const c = parseInt(cell.dataset.c);
+        
+        const existingChip = cell.querySelector('.chip');
+        if (existingChip) {
+            cell.removeChild(existingChip);
+        }
+
+        if (board[r][c] !== EMPTY) {
+            const chip = document.createElement('div');
+            chip.className = `chip ${board[r][c] === RED ? 'red' : 'yellow'}`;
+            cell.appendChild(chip);
+        }
+
+        if (gameActive && drop(c) !== -1) {
+            cell.classList.add('playable');
+        } else {
+            cell.classList.remove('playable');
+        }
+      });
+    }
+
+    function drop(col) {
+      for (let r = ROWS - 1; r >= 0; r--) {
+        if (board[r][col] === EMPTY) return r;
+      }
+      return -1;
+    }
+
+    function handleCellClick(col) {
+      if (!gameActive) return;
+
+      if (vsAI && current === YELLOW) return;
+
+      play(col);
+    }
+
+    function play(col, isAI = false) {
+      const row = drop(col);
+      if (row === -1) {
+          if (!isAI) updateStatus("Colonne pleine ! Choisissez une autre colonne.", "error");
+          return;
+      }
+
+      board[row][col] = current;
+      render();
+
+      if (win(row, col)) {
+        gameActive = false;
+        updateStatus(`${current === RED ? 'Rouge' : 'Jaune'} gagne ! 🎉`, "win");
+        return;
+      }
+
+      if (board[0].every(c => c !== EMPTY)) {
+        gameActive = false;
+        updateStatus('Match nul ! 🤝', "draw");
+        return;
+      }
+
+      current = 3 - current;
+      updateStatus(`Au tour du joueur ${current === RED ? 'Rouge' : 'Jaune'}`);
+
+      if (vsAI && current === YELLOW && gameActive) {
+        setTimeout(() => {
+          const aiCol = bestMove();
+          if (aiCol !== null) {
+            play(aiCol, true);
+          } else {
+            console.warn("L'IA n'a pas trouvé de coup valide.");
+          }
+        }, 700);
+      }
+    }
+
+    function updateStatus(message, type = "info") {
+        gameStatusDiv.textContent = message;
+        gameStatusDiv.style.color = "#e0e0e0";
+        if (type === "win") {
+            gameStatusDiv.style.color = "#4CAF50";
+        } else if (type === "draw") {
+            gameStatusDiv.style.color = "#FFC107";
+        } else if (type === "error") {
+            gameStatusDiv.style.color = "#F44336";
+        }
+    }
+
+    function win(r, c) {
+      const player = board[r][c];
+      const directions = [[0,1],[1,0],[1,1],[1,-1]];
+
+      for (const [dr, dc] of directions) {
+        let count = 1;
+        for (let i = 1; i < 4; i++) {
+          const nr = r + dr * i;
+          const nc = c + dc * i;
+          if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && board[nr][nc] === player) {
+            count++;
+          } else {
+            break;
+          }
+        }
+        for (let i = 1; i < 4; i++) {
+          const nr = r - dr * i;
+          const nc = c - dc * i;
+          if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && board[nr][nc] === player) {
+            count++;
+          } else {
+            break;
+          }
+        }
+        if (count >= 4) return true;
+      }
+      return false;
+    }
+
+    function scoreWindow(window, currentPlayer) {
+      const opponentPlayer = (currentPlayer === RED) ? YELLOW : RED;
+
+      const currentCount = window.filter(v => v === currentPlayer).length;
+      const opponentCount = window.filter(v => v === opponentPlayer).length;
+      const emptyCount = window.filter(v => v === EMPTY).length;
+
+      let score = 0;
+
+      if (currentCount === 4) {
+          score += 100000;
+      } else if (currentCount === 3 && emptyCount === 1) {
+          score += 1000;
+      } else if (currentCount === 2 && emptyCount === 2) {
+          score += 10;
+      }
+
+      if (opponentCount === 4) {
+          score -= 99999;
+      } else if (opponentCount === 3 && emptyCount === 1) {
+          score -= 999;
+      } else if (opponentCount === 2 && emptyCount === 2) {
+          score -= 9;
+      }
+
+      return score;
+    }
+
+    function evaluateBoard(currentBoard, currentPlayer) {
+      let totalScore = 0;
+
+      const centerColumn = currentBoard.map(row => row[Math.floor(COLS / 2)]);
+      totalScore += centerColumn.filter(cell => cell === currentPlayer).length * 50;
+      totalScore -= centerColumn.filter(cell => cell === (currentPlayer === RED ? YELLOW : RED)).length * 20;
+
+      // Horizontal
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c <= COLS - 4; c++) {
+          const window = [currentBoard[r][c], currentBoard[r][c+1], currentBoard[r][c+2], currentBoard[r][c+3]];
+          totalScore += scoreWindow(window, currentPlayer);
+        }
+      }
+
+      // Vertical
+      for (let c = 0; c < COLS; c++) {
+        for (let r = 0; r <= ROWS - 4; r++) {
+          const window = [currentBoard[r][c], currentBoard[r+1][c], currentBoard[r+2][c], currentBoard[r+3][c]];
+          totalScore += scoreWindow(window, currentPlayer);
+        }
+      }
+
+      // Diagonale positive (haut-gauche vers bas-droite)
+      for (let r = 0; r <= ROWS - 4; r++) {
+        for (let c = 0; c <= COLS - 4; c++) {
+          const window = [currentBoard[r][c], currentBoard[r+1][c+1], currentBoard[r+2][c+2], currentBoard[r+3][c+3]];
+          totalScore += scoreWindow(window, currentPlayer);
+        }
+      }
+
+      // Diagonale négative (bas-gauche vers haut-droite)
+      for (let r = 3; r < ROWS; r++) {
+        for (let c = 0; c <= COLS - 4; c++) {
+          const window = [currentBoard[r][c], currentBoard[r-1][c+1], currentBoard[r-2][c+2], currentBoard[r-3][c+3]];
+          totalScore += scoreWindow(window, currentPlayer);
+        }
+      }
+      return totalScore;
+    }
+
+    // Fonctions auxiliaires pour minimax afin d'opérer sur une copie du plateau
+    function dropInBoard(tempBoard, col) {
+        for (let r = ROWS - 1; r >= 0; r--) {
+            if (tempBoard[r][col] === EMPTY) return r;
+        }
+        return -1;
+    }
+
+    function winInBoard(tempBoard, r, c) {
+        const player = tempBoard[r][c];
+        const directions = [[0,1],[1,0],[1,1],[1,-1]];
+        for (const [dr, dc] of directions) {
+            let count = 1;
+            for (let i = 1; i < 4; i++) {
+                const nr = r + dr * i;
+                const nc = c + dc * i;
+                if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && tempBoard[nr][nc] === player) {
+                    count++;
+                } else {
+                    break;
+                }
+            }
+            for (let i = 1; i < 4; i++) {
+                const nr = r - dr * i;
+                const nc = c - dc * i;
+                if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && tempBoard[nr][nc] === player) {
+                    count++;
+                } else {
+                    break;
+                }
+            }
+            if (count >= 4) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Algorithme Minimax avec élagage Alpha-Beta pour le Puissance 4.
+     * @param {Array<Array<number>>} currentBoard - L'état actuel du plateau.
+     * @param {number} depth - La profondeur de recherche restante.
+     * @param {number} alpha - La meilleure valeur trouvée jusqu'à présent pour le joueur maximisant.
+     * @param {number} beta - La meilleure valeur trouvée jusqu'à présent pour le joueur minimisant.
+     * @param {boolean} maximizingPlayer - Vrai si le joueur actuel est l'IA (Jaune), Faux si c'est l'adversaire (Rouge).
+     * @returns {Array<number, number|null>} Un tableau contenant le meilleur score et la meilleure colonne.
+     */
+    function minimax(currentBoard, depth, alpha, beta, maximizingPlayer) {
+      const validMoves = [...Array(COLS).keys()].filter(c => currentBoard[0][c] === EMPTY);
+
+      // --- Conditions de terminaison ---
+      // 1. Le plateau est plein (match nul potentiel)
+      if (validMoves.length === 0) {
+          return [0, null]; // Score neutre pour un match nul
+      }
+
+      // 2. Vérification des victoires/défaites immédiates (très important pour le blocage)
+      // L'IA doit voir si ELLE peut gagner ou si l'adversaire peut gagner AU PROCHAIN COUP.
+      const currentPlayerForCheck = maximizingPlayer ? YELLOW : RED;
+      const opponentPlayerForCheck = maximizingPlayer ? RED : YELLOW;
+
+      for (const col of validMoves) {
+          const row = dropInBoard(currentBoard, col);
+          if (row !== -1) {
+              // Simule un coup pour le joueur actuel (si il gagne, c'est le meilleur coup)
+              currentBoard[row][col] = currentPlayerForCheck;
+              if (winInBoard(currentBoard, row, col)) {
+                  currentBoard[row][col] = EMPTY; // Annule le coup simulé
+                  // Donne un score très élevé, et ajoute la profondeur restante pour favoriser les victoires rapides
+                  return [1000000 + depth, col];
+              }
+              currentBoard[row][col] = EMPTY; // Annule le coup
+
+              // Simule un coup pour l'adversaire (si il gagne, c'est une défaite à éviter)
+              currentBoard[row][col] = opponentPlayerForCheck;
+              if (winInBoard(currentBoard, row, col)) {
+                  currentBoard[row][col] = EMPTY; // Annule le coup simulé
+                  // Donne un score très bas, et soustrait la profondeur pour pénaliser les défaites rapides
+                  return [-999999 - depth, col];
+              }
+              currentBoard[row][col] = EMPTY; // Annule le coup
+          }
+      }
+
+      // 3. Profondeur de recherche atteinte
+      if (depth === 0) {
+        // Évalue le plateau depuis la perspective de l'IA (YELLOW), qui est le joueur maximisant globalement
+        return [evaluateBoard(currentBoard, YELLOW), null];
+      }
+
+      // --- Processus de Minimax ---
+      // L'IA (Jaune) maximise son score
+      if (maximizingPlayer) {
+        let value = -Infinity;
+        let bestCol = null;
+        
+        // Optimisation: trier les coups pour commencer par le centre, améliore l'élagage.
+        const orderedMoves = [...validMoves].sort((a, b) => Math.abs(a - COLS / 2) - Math.abs(b - COLS / 2));
+
+        for (const col of orderedMoves) {
+          const newBoard = JSON.parse(JSON.stringify(currentBoard)); // Copie profonde du plateau
+          const row = dropInBoard(newBoard, col);
+          if (row !== -1) {
+              newBoard[row][col] = YELLOW; // L'IA joue
+              const [val] = minimax(newBoard, depth - 1, alpha, beta, false); // Appel récursif pour l'adversaire
+              
+              if (val > value) {
+                value = val;
+                bestCol = col;
+              }
+              alpha = Math.max(alpha, value); // Mise à jour d'alpha
+              if (alpha >= beta) break; // Élagage Beta
+          }
+        }
+        return [value, bestCol];
+      } else { // L'adversaire (Rouge) minimise le score de l'IA
+        let value = Infinity;
+        let bestCol = null;
+
+        const orderedMoves = [...validMoves].sort((a, b) => Math.abs(a - COLS / 2) - Math.abs(b - COLS / 2));
+
+        for (const col of orderedMoves) {
+          const newBoard = JSON.parse(JSON.stringify(currentBoard)); // Copie profonde du plateau
+          const row = dropInBoard(newBoard, col);
+          if (row !== -1) {
+              newBoard[row][col] = RED; // L'adversaire joue
+              const [val] = minimax(newBoard, depth - 1, alpha, beta, true); // Appel récursif pour l'IA
+              
+              if (val < value) {
+                value = val;
+                bestCol = col;
+              }
+              beta = Math.min(beta, value); // Mise à jour de beta
+              if (alpha >= beta) break; // Élagage Alpha
+          }
+        }
+        return [value, bestCol];
+      }
+    }
+
+    function bestMove() {
+      if (!gameActive || current !== YELLOW) return null;
+
+      // Lance minimax depuis la perspective de l'IA (maximizingPlayer = true)
+      const [value, col] = minimax(board, depth, -Infinity, Infinity, true);
+      console.log(`AI (YELLOW) chose column ${col} with score ${value}`);
+      return col;
+    }
+
+    function newGame() {
+      vsAI = document.getElementById('mode').value === '1';
+      depth = parseInt(document.getElementById('difficulty').value);
+      current = RED;
+      initBoard();
+    }
+
+    initBoard();
+  </script>
+</body>
+</html>
